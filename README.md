@@ -67,6 +67,8 @@ However, evaluating such results remains challenging — most existing evaluator
 ## 🧱 Environments
 
 ```bash
+git clone https://github.com/EthanG97/ImageDoctor.git
+cd ImageDoctor
 # Create a new conda environment from environment.yaml
 conda env create -f environment.yaml
 
@@ -80,22 +82,11 @@ conda activate imagedoctor
 ## 🧠 Inference
 
 ```python
-from transformers import AutoProcessor, AutoModelForVision2Seq
-from PIL import Image
-import torch
-
-model_id = "yuxiangguo/ImageDoctor"
-model = AutoModelForVision2Seq.from_pretrained(model_id, torch_dtype=torch.float16).eval().cuda()
-processor = AutoProcessor.from_pretrained(model_id)
-
-prompt = "A cat wearing sunglasses sitting on the beach."
-image = Image.open("cat_beach.png").convert("RGB")
-
-inputs = processor(prompt, images=image, return_tensors="pt").to(model.device)
-outputs = model.generate(**inputs, max_new_tokens=512)
-response = processor.batch_decode(outputs, skip_special_tokens=True)[0]
-
-print("🩺 ImageDoctor Evaluation:\n", response)
+python inference.py\
+  --checkpoint GYX97/ImageDoctor \
+  --image_path ./examples/cat.png \
+  --prompt "a close-up photo of a fluffy orange cat with green eyes" \
+  --output_dir ./outputs
 ```
 <!--
 
