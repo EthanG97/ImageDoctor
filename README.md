@@ -52,7 +52,7 @@ However, evaluating such results remains challenging — most existing evaluator
   - *Look:* Identify potential flaw regions  
   - *Think:* Analyze and reason about these regions  
   - *Predict:* Produce final scores and diagnostic heatmaps  
-  The model can even **zoom in** on localized regions when reasoning, mimicking human evaluators.
+  The model can **zoom in** on localized regions when reasoning, mimicking human evaluators.
 
 - **⚙️ GRPO Fine-Tuning**  
   ImageDoctor is refined through **Group Relative Policy Optimization (GRPO)** with a **grounding reward**, improving spatial awareness and preference alignment.
