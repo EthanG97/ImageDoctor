@@ -2,7 +2,7 @@
 
 [![Arxiv](https://img.shields.io/badge/arXiv-2510.01010-b31b1b.svg)](https://arxiv.org/abs/2510.01010)
 [![Model](https://img.shields.io/badge/HuggingFace-Model-blue)](https://huggingface.co/GYX97/ImageDoctor)
-[![Website](https://img.shields.io/badge/Website-ImageDoctor.io-ff69b4.svg)]([https://imagedoctor.github.io](https://image-doctor.github.io/))
+[![Website](https://img.shields.io/badge/Website-ImageDoctor.io-ff69b4.svg)](https://image-doctor.github.io/)
 
 
 **ImageDoctor** is a unified **evaluation framework** for **text-to-image (T2I)** generation.  
