@@ -67,11 +67,12 @@ However, evaluating such results remains challenging — most existing evaluator
 ## 🧱 Environments
 
 ```bash
-conda create -n imagedoctor python=3.10
+# Create a new conda environment from environment.yaml
+conda env create -f environment.yaml
+
+# Activate it
 conda activate imagedoctor
 
-pip install torch torchvision transformers accelerate pillow matplotlib
-pip install qwen-vl-utils
 ```
 
 ---
