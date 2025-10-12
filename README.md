@@ -9,24 +9,27 @@
 **ImageDoctor** is a unified **evaluation framework** for **text-to-image (T2I)** generation.  
 It produces both **multi-aspect scalar scores** (semantic alignment, aesthetics, plausibility, overall) and **spatially grounded heatmaps**, following a novel **“look–think–predict”** paradigm inspired by human diagnosis.
 
-<img src="./images/teaser_cropped.jpg"  width="960">
+<p align="center">
+  <img src="./images/teaser_cropped.jpg" alt="ImageDoctor Teaser" width="100%">
+</p>
 
 
 ---
 
 ## 🧩 Table of Contents
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Environments](#environments)
-- [Inference](#inference)
-- [Citation](#citation)
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Environments](#-environments)
+- [Inference](#-inference)
+- [Citation](#-citation)
+- [Acknowledgement](#-acknowledgement)
 
 ---
 
 ## 📘 Overview
 
 Recent advances in text-to-image (T2I) generation have yielded increasingly realistic and instruction-following images.  
-However, evaluating such results remains challenging — most existing evaluators (e.g., PickScore, ImageReward) output a single scalar score, which fails to capture localized flaws or provide interpretable feedback.
+However, evaluating such results remains challenging — most existing evaluators output a single scalar score, which fails to capture localized flaws or provide interpretable feedback.
 
 **ImageDoctor** fills this gap by introducing **dense, grounded evaluation**:
 - It scores each image across **multiple dimensions**,  
