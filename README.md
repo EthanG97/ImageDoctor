@@ -156,8 +156,8 @@ If you use **ImageDoctor** in your research, please cite:
 
 ImageDoctor builds upon:
 - [Qwen2.5-VL](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) – Vision-Language foundation
-- [RichHF-18K](https://huggingface.co/datasets/yuxiangguo/RichHF-18K) – Multi-aspect human preference dataset
-- [Flow-GRPO](https://github.com/flow-grpo/flow-grpo) – Reinforcement Learning base framework
+- [RichHF-18K](https://github.com/google-research-datasets/richhf-18k) – Multi-aspect human preference dataset
+- [Flow-GRPO](https://github.com/yifan123/flow_grpo) – Reinforcement Learning base framework
 
 ---
 
