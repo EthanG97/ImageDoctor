@@ -1,6 +1,3 @@
-# ImageDoctor
-The official implementation for "ImageDoctor: Diagnosing Text-to-Image Generation via Grounded Image Reasoning"
-
 # 🩺 ImageDoctor: Rich Feedback for Text-to-Image Generation through Grounded Image Reasoning
 
 [![Arxiv](https://img.shields.io/badge/arXiv-2510.01010-b31b1b.svg)](https://arxiv.org/abs/2510.01010)
