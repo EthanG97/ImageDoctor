@@ -1,4 +1,5 @@
-# 🩺 ImageDoctor: Rich Feedback for Text-to-Image Generation through Grounded Image Reasoning
+# <img src="./images/icon.png" alt="ImageDoctor" width="28" style="vertical-align:middle; margin-right:8px;"> ImageDoctor: Rich Feedback for Text-to-Image Generation through Grounded Image Reasoning
+
 
 [![Arxiv](https://img.shields.io/badge/arXiv-2510.01010-b31b1b.svg)](https://arxiv.org/abs/2510.01010)
 [![Model](https://img.shields.io/badge/HuggingFace-Model-blue)](https://huggingface.co/GYX97/ImageDoctor)
