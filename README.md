@@ -9,6 +9,9 @@
 **ImageDoctor** is a unified **evaluation framework** for **text-to-image (T2I)** generation.  
 It produces both **multi-aspect scalar scores** (semantic alignment, aesthetics, plausibility, overall) and **spatially grounded heatmaps**, following a novel **“look–think–predict”** paradigm inspired by human diagnosis.
 
+<img src="./images/teaser_cropped.jpg"  width="120">
+
+
 ---
 
 ## 🧩 Table of Contents
