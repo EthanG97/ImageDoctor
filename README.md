@@ -21,6 +21,8 @@ It produces both **multi-aspect scalar scores** (semantic alignment, aesthetics,
 - [Key Features](#-key-features)
 - [Environments](#-environments)
 - [Inference](#-inference)
+- [Training](#-training)
+- [Applications](#-applications)
 - [Citation](#-citation)
 - [Acknowledgement](#-acknowledgement)
 
@@ -77,6 +79,51 @@ conda activate imagedoctor
 
 ```
 
+
+---
+
+
+## Training
+
+### Cold Start
+
+For the cold-start stage, we follow [LLaMA-Factory](https://github.com/hiyouga/LlamaFactory) to perform supervised fine-tuning (SFT).
+
+In **Stage 1**, we train the Qwen2.5-VL using only the final answer so that the model can first learn to capture human preferences.
+
+```bash
+llamafactory-cli train training/configs/cold_start_1.yaml
+```
+To enable Qwen2.5-VL to generate heatmaps, we initialize the model from the Stage 1 checkpoint and attach a heatmap decoder.
+
+Please replace transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py with modify/transformers/modeling_qwen2_5_vl.py, and copy the segment_anything directory from [SAM](https://github.com/facebookresearch/segment-anything/tree/main/segment_anything) to the same directory.
+
+To enable the supervision on the heatmap prediction, we also corresponding provide the way to modify for 'llamafactory'
+
+Then, run the following command to initialize the model:
+
+```bash
+python add_token.py --stage1_model /path/to/stage1/model --model_init /path/to/model_init.pt --output /path/to/output
+```
+
+In **Stage 2**, we further optimize the model to generate reasoning in the desired format together with heatmap predictions.
+
+```bash
+llamafactory-cli train training/configs/cold_start_2.yaml
+```
+
+### Reinforcement Fine-Tuning
+
+Our reinforcement fine-tuning stage is built upon [VLM-R1](https://github.com/om-ai-lab/VLM-R1). Before running, please modify the dataset path and instruction configuration in `modify/VLM-R1/run_scripts/run_grpo_np_grounding.sh`.
+
+The necessary data for training can be found in [Google Drive](https://drive.google.com/drive/folders/1MaISVMIn2wEjWdXePRwJVkOXGxrjLDdl?usp=sharing).
+
+Then, run the following command to start reinforcement fine-tuning:
+
+```bash
+bash run_grpo_np_grounding.sh
+```
+
 ---
 
 ## 🧠 Inference
@@ -88,29 +135,6 @@ python inference.py\
   --prompt "a close-up photo of a fluffy orange cat with green eyes" \
   --output_dir ./outputs
 ```
-<!--
-
----
-
-## 🌈 Heatmap Visualization
-
-```python
-import matplotlib.pyplot as plt
-import numpy as np
-
-heatmaps = model(**inputs, output_heatmaps=True).heatmaps  # {'artifact': tensor, 'misalignment': tensor}
-
-for k, v in heatmaps.items():
-    plt.figure(figsize=(4, 4))
-    plt.imshow(np.array(image))
-    plt.imshow(v.squeeze().cpu().numpy(), cmap="jet", alpha=0.5)
-    plt.title(f"{k.capitalize()} Heatmap")
-    plt.axis("off")
-    plt.show()
-```
-
----
-
 ## 🧩 Applications
 
 | Role | Description |
@@ -119,22 +143,12 @@ for k, v in heatmaps.items():
 | **Verifier** | Select best image among candidates in test-time scaling setups. |
 | **Reward Model** | Provide **dense spatial feedback** for RLHF in diffusion/flow models (DenseFlow-GRPO). |
 
----
+### DenseFlow-GRPO
 
-## ⚙️ Training Pipeline
+To demonstrate the effectiveness of spatial feedback, we further develop DenseFlow-GRPO based on Flow-GRPO. Specifically, we modify the log-probability computation to enable the transition from image-level feedback to dense spatial feedback.
 
-ImageDoctor is trained in **two phases**:
 
-1. **Cold-Start Stage** — Supervised fine-tuning on RichHF-18K to predict multi-aspect scores and heatmaps.  
-2. **Reinforcement Stage (GRPO)** — Refines reasoning and grounding using group-relative policy optimization with custom grounding rewards.
 
-<p align="center">
-  <img src="./assets/pipeline.png" alt="ImageDoctor Pipeline" width="80%">
-</p>
-
----
-
--->
 
 ## 🧾 Citation
 
@@ -158,6 +172,7 @@ ImageDoctor builds upon:
 - [Qwen2.5-VL](https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct) – Vision-Language foundation
 - [RichHF-18K](https://github.com/google-research-datasets/richhf-18k) – Multi-aspect human preference dataset
 - [Flow-GRPO](https://github.com/yifan123/flow_grpo) – Reinforcement Learning base framework
+- [VLM-R1](https://github.com/om-ai-lab/VLM-R1) - Reinforcement fine-tuning framework for vision-language models
 
 ---
 
