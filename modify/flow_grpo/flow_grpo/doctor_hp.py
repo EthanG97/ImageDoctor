@@ -59,7 +59,7 @@ def extract_scores(output_text, default_num=0.0, clamp01=True):
         pl = np.asarray(all_scores["plausibility"],         dtype=np.float32)
         ov = np.asarray(all_scores["overall"],              dtype=np.float32)
 
-        weighted = sa * 0.8 + ae * 0.1 + pl * 0.1
+        weighted = sa
         return weighted
     combined = combine_scores(all_scores)
     return combined, all_scores

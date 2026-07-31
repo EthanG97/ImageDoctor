@@ -145,7 +145,41 @@ python inference.py\
 
 ### DenseFlow-GRPO
 
-To demonstrate the effectiveness of spatial feedback, we further develop DenseFlow-GRPO based on Flow-GRPO. Specifically, we modify the log-probability computation to enable the transition from image-level feedback to dense spatial feedback.
+To demonstrate the effectiveness of spatial feedback, we further develop DenseFlow-GRPO based on Flow-GRPO. The key motivation is that it is not appropriate to assign the same reward or penalty uniformly across all pixels, since image flaws are often localized. However, previous methods mostly provide only image-level rewards, making it difficult to preserve fine-grained supervision. In contrast, ImageDoctor produces heatmaps that indicate flawed regions, thereby enabling pixel-level dense reward signals. Specifically, we modify the log-probability computation to move from image-level feedback to dense spatial feedback.
+
+### 🔧 Flow-GRPO Modifications
+
+This section summarizes the concrete code-level modifications in `modify/flow_grpo` compared to the original Flow-GRPO pipeline.
+
+#### 1) Reward Model Integration (`flow_grpo/flow_grpo/doctor_hp.py`, `flow_grpo/flow_grpo/rewards.py`)
+
+- Replaced generic reward callback with an ImageDoctor-based scorer (`DoctorScorer_hp`).
+- Added multi-aspect scalar reward extraction from model outputs:
+  - Semantic Alignment
+  - Aesthetic
+  - Plausibility
+  - Overall Impression
+- Semantic Alignment serves as reward used for RL:
+  - We noticed that the semantic alignment score aligns with widely used autometic metrics
+- Added grounded region prediction:
+  - Detects misalignment/artifact tokens from the generated diagnosis text.
+  - Uses prompt encoder + mask decoder to produce region maps.
+  - Fuses misalignment/artifact maps.
+
+
+#### 2) Diffusers Patches (`flow_grpo/diffusers_patch/*`)
+
+Two diffusers-side changes are introduced to support dense GRPO optimization.
+
+**`sd3_sde_with_logprob.py`**
+- Adds `sde_step_with_logprob(...)` that returns:
+  - previous latent sample
+  - log-probability under the current policy
+  - transition mean and noise scale terms.
+- Supports two modes:
+  - `mean_only=True`: image-level (reduced) log-prob
+  - `mean_only=False`: spatial log-prob map retained per latent location.
+
 
 
 

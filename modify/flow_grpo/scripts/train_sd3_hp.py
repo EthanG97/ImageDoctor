@@ -18,11 +18,11 @@ from diffusers.utils.torch_utils import is_compiled_module
 import numpy as np
 import flow_grpo.prompts
 import flow_grpo.rewards
-from flow_grpo.stat_tracking import PerPromptStatTracker
 from flow_grpo.diffusers_patch.sd3_pipeline_with_logprob import pipeline_with_logprob
 from flow_grpo.diffusers_patch.sd3_sde_with_logprob import sde_step_with_logprob
 from flow_grpo.diffusers_patch.train_dreambooth_lora_sd3 import encode_prompt
 import torch
+import torch.nn.functional as F
 import wandb
 from functools import partial
 import tqdm
@@ -167,6 +167,35 @@ def calculate_zero_std_ratio(prompts, gathered_rewards):
     zero_std_ratio = zero_std_count / len(prompt_std_devs)
     
     return zero_std_ratio, prompt_std_devs.mean()
+
+def spatial_grpo_advantages(prompts, pixel_rewards, global_std=True, eps=1e-4):
+    """
+    Args:
+        prompts: sequence of length N
+        pixel_rewards: array [N, T, H, W] or [N, H, W]
+        global_std: if True, divide by global std; else per-prompt std at each (t, u, v)
+    Returns:
+        advantages with the same shape as pixel_rewards
+    """
+    prompts = np.asarray(prompts)
+    rewards = np.asarray(pixel_rewards, dtype=np.float32)
+    if rewards.ndim == 3:
+        rewards = rewards[:, np.newaxis, :, :]
+
+    adv = np.zeros_like(rewards)
+    global_sigma = rewards.std() + eps if global_std else None
+
+    for prompt in np.unique(prompts):
+        idx = prompts == prompt
+        group = rewards[idx]
+        mu = group.mean(axis=0)
+        if global_std:
+            sigma = global_sigma
+        else:
+            sigma = group.std(axis=0) + eps
+        adv[idx] = (group - mu) / sigma
+
+    return adv
 
 def create_generator(prompts, base_seed):
     generators = []
@@ -551,9 +580,6 @@ def main(_):
 
     if config.sample.num_image_per_prompt == 1:
         config.per_prompt_stat_tracking = False
-    # initialize stat tracker
-    if config.per_prompt_stat_tracking:
-        stat_tracker = PerPromptStatTracker(config.sample.global_std)
 
     # for some reason, autocast is necessary for non-lora training but for lora training it isn't necessary and it uses
     # more memory
@@ -665,8 +691,8 @@ def main(_):
 
             latents = torch.stack(
                 latents, dim=1
-            )  # (batch_size, num_steps + 1, 16, 96, 96)
-            log_probs = torch.stack(log_probs, dim=1)  # shape after stack (batch_size, num_steps)
+            )  # (batch_size, num_steps + 1, 16, H_lat, W_lat); 64x64 at resolution=512
+            log_probs = torch.stack(log_probs, dim=1)  # (batch_size, num_steps, H_lat, W_lat)
             
 
             timesteps = pipeline.scheduler.timesteps.repeat(
@@ -758,9 +784,15 @@ def main(_):
                     },
                     step=global_step,
                 )
-        samples["rewards"]["ori_avg"] = samples["rewards"]["avg"]
-        # The purpose of repeating `adv` along the timestep dimension here is to make it easier to introduce timestep-dependent advantages later, such as adding a KL reward.
-        samples["rewards"]["avg"] = samples["rewards"]["avg"].unsqueeze(1).repeat(1, num_train_timesteps)
+        scalar_reward = samples["rewards"]["avg"]
+        heatmap = samples["final_heatmap"]
+        pixel_reward = scalar_reward[:, None, None] * (1.0 - heatmap)
+        samples["rewards"]["ori_avg"] = scalar_reward
+        # Repeat dense reward over timesteps for per-timestep training.
+        samples["rewards"]["pixel"] = pixel_reward.unsqueeze(1).repeat(
+            1, num_train_timesteps, 1, 1
+        )
+
         # gather rewards across processes
         gathered_rewards = {key: accelerator.gather(value) for key, value in samples["rewards"].items()}
         gathered_rewards = {key: value.cpu().numpy() for key, value in gathered_rewards.items()}
@@ -775,41 +807,48 @@ def main(_):
                 step=global_step,
             )
 
-        # per-prompt mean/std tracking
+        prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
+        prompts = pipeline.tokenizer.batch_decode(
+            prompt_ids, skip_special_tokens=True
+        )
+
+        # per-prompt spatial GRPO normalization on dense rewards
         if config.per_prompt_stat_tracking:
-            # gather the prompts across processes
-            prompt_ids = accelerator.gather(samples["prompt_ids"]).cpu().numpy()
-            prompts = pipeline.tokenizer.batch_decode(
-                prompt_ids, skip_special_tokens=True
+            advantages = spatial_grpo_advantages(
+                prompts,
+                gathered_rewards["pixel"],
+                global_std=config.sample.global_std,
             )
-            advantages = stat_tracker.update(prompts, gathered_rewards['avg'])
-
-            group_size, trained_prompt_num = stat_tracker.get_stats()
-
-            zero_std_ratio, reward_std_mean = calculate_zero_std_ratio(prompts, gathered_rewards)
-            if accelerator.is_local_main_process:
-                print("len(prompts)", len(prompts))
-                print("len unique prompts", len(set(prompts)))
-                print(f"zero_std_ratio: {zero_std_ratio:.4f}")
-
-            if accelerator.is_main_process:
-                wandb.log(
-                    {
-                        "group_size": group_size,
-                        "trained_prompt_num": trained_prompt_num,
-                        "zero_std_ratio": zero_std_ratio,
-                        "reward_std_mean": reward_std_mean,
-                    },
-                    step=global_step,
-                )
-            stat_tracker.clear()
+            _, group_counts = np.unique(prompts, return_counts=True)
+            group_size = group_counts.mean()
+            trained_prompt_num = len(group_counts)
         else:
-            advantages = (gathered_rewards['avg'] - gathered_rewards['avg'].mean()) / (gathered_rewards['avg'].std() + 1e-4)
+            pixel_rewards = gathered_rewards["pixel"]
+            advantages = (pixel_rewards - pixel_rewards.mean()) / (pixel_rewards.std() + 1e-4)
+            group_size = config.sample.num_image_per_prompt
+            trained_prompt_num = len(set(prompts))
+
+        zero_std_ratio, reward_std_mean = calculate_zero_std_ratio(prompts, gathered_rewards)
+        if accelerator.is_local_main_process:
+            print("len(prompts)", len(prompts))
+            print("len unique prompts", len(set(prompts)))
+            print(f"zero_std_ratio: {zero_std_ratio:.4f}")
+
+        if accelerator.is_main_process:
+            wandb.log(
+                {
+                    "group_size": group_size,
+                    "trained_prompt_num": trained_prompt_num,
+                    "zero_std_ratio": zero_std_ratio,
+                    "reward_std_mean": reward_std_mean,
+                },
+                step=global_step,
+            )
 
         # ungather advantages; we only need to keep the entries corresponding to the samples on this process
         advantages = torch.as_tensor(advantages)
         samples["advantages"] = (
-            advantages.reshape(accelerator.num_processes, -1, advantages.shape[-1])[accelerator.process_index]
+            advantages.reshape(accelerator.num_processes, -1, *advantages.shape[1:])[accelerator.process_index]
             .to(accelerator.device)
         )
         if accelerator.is_local_main_process:
@@ -818,9 +857,10 @@ def main(_):
         del samples["rewards"]
         del samples["prompt_ids"]
         del samples["heatmap"]
+        del samples["final_heatmap"]
 
-        # Get the mask for samples where all advantages are zero across the time dimension
-        mask = (samples["advantages"].abs().sum(dim=1) != 0)
+        # Get the mask for samples where all advantages are zero across time and space
+        mask = (samples["advantages"].abs().sum(dim=(1, 2, 3)) != 0)
         
         # If the number of True values in mask is not divisible by config.sample.num_batches_per_epoch,
         # randomly change some False values to True to make it divisible
@@ -922,13 +962,12 @@ def main(_):
                         adv = advantages
                         if adv.ndim == 1:                     # [B] -> [B,1,1]
                             adv = adv[:, None, None]
-                        elif adv.shape[-2:] == (64, 64):      # already [B,64,64]
+                        elif adv.shape[-2:] == (64, 64):      # [B,64,64] dense advantage
                             pass
                         else:
-                            # fallback: force to [B,1,1]
                             adv = adv.reshape(adv.shape[0], 1, 1)
-                        unclipped_loss = -adv * ratio * (1-sample["final_heatmap"])
-                        clipped_loss = -adv * (1-sample["final_heatmap"])* torch.clamp(
+                        unclipped_loss = -adv * ratio
+                        clipped_loss = -adv * torch.clamp(
                             ratio ,
                             1.0 - config.train.clip_range,
                             1.0 + config.train.clip_range,

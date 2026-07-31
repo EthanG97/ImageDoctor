@@ -1,3 +1,5 @@
+from PIL import Image
+import torch
 
 
 def doctor_score_hp(device):
